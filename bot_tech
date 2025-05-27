@@ -1,0 +1,461 @@
+import asyncio
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InputMediaPhoto, InlineKeyboardMarkup, InlineKeyboardButton
+
+API_TOKEN = '7804128176:AAEPmaDHPvezBzT94xYbT6Nxpd2XDSitezY'
+
+class ConsultForm(StatesGroup):
+    name = State()
+    phone = State()
+    confirm = State()
+
+class Form(StatesGroup):
+    brand = State()
+    model = State()
+    model_variant = State()
+
+bot = Bot(
+    token=API_TOKEN,
+    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+)
+dp = Dispatcher(storage=MemoryStorage())
+
+MANAGER_ID = 5221546392
+PRIVACY_POLICY_URL = "https://example.com/privacy"
+
+
+cars_db = {
+    'Автовышки': ['Mitsubishi Fuso', 'Mitsubishi Canter', 'ГАЗ 481260', 'Huyndai HD 67'],
+    'Автокраны': ['GROVE GMK 5220', 'GROVE GMK 5170', 'GROVE GMK 5130', 'GROVE GMK 5100', 'LIEBHERR LTM 1050-3.1', 'КАМАЗ КС-65719'],
+    'Асфальтоукладчики': ['Vogele S-1804', 'Volvo ABG 5820', 'Vogele SUPER 1900-2'],
+    'Бетононасосы': ['КАМАЗ АБН 75/21 - 21 м', 'MERCEDES Schwing - 24 м'],
+    'Бульдозеры': ['Caterpillar D6R', 'Komatsu D275', 'Liebherr PR 752 (Без ГСМ)', 'Komatsu D155 (без ГСМ)', 'Shantui SD22'],
+    'Виброкатки': ['SAKAI CR270 (гладкий)', 'BOMAG BW120AD (гладкий)', 'SAKAI SW502-1 (гладкий)', 'SAKAI SV512TF-H (ГРУНТОВЫЙ)'],
+    'Генераторы': ['JCB G220X', 'Airman SDG150S'],
+    'Гусеничные экскаваторы': ['Hitachi ZX400LCH (без ГСМ)', 'Doosan 340', 'Hyundai 300'],
+    'Ямобуры': ['JCB 540', 'Manitou MT 1637', 'CAT Telehandler TH514'],
+    'Экскаваторы-погрузчики': ['Caterpillar 434E', 'JCB 4CX'],
+    'Колесные экскаваторы': ['Hyundai 200', 'JCB 175'],
+    # Новые категории
+    'Манипуляторы': [
+        'КАМАЗ 65117-3010-78', 
+        'КАМАЗ 4308-С3', 
+        'ISUZU ISU75R-7'
+    ],
+    'Минипогрузчики': [
+        'Bobcat S130', 
+        'Bobcat S150', 
+        'Bobcat S175', 
+        'Bobcat S250'
+    ],
+    'Самосвалы': [
+        'КАМАЗ 6520', 
+        'HOWO (САМОСВАЛ)', 
+        'VOLVO (САМОСВАЛ)', 
+        'КАМАЗ 65116-N3 (ДЛИННОМЕР 12м)', 
+        'КАМАЗ 65115 (Бортовой 6м)'
+    ]
+    
+}
+car_data = {
+    'Автовышки': {
+        'Mitsubishi Fuso': {
+            '2022': {
+                'specs': '🛠️ Грузоподъемность: 1.5 т\n📏 Высота подъема: 21 м\n⚙️ Двигатель: 4.9 л дизель (175 л.с.)\n🎚️ Тип: Автомобильная\n💵 Аренда: 15 000 руб/смена',
+                'review': 'Надежная японская платформа. Отлично подходит для городских работ',
+                'photos': ['https://example.com/fuso1.jpg']
+            }
+        },
+        'ГАЗ 481260': {
+            '2021': {
+                'specs': '🛠️ Грузоподъемность: 1.2 т\n📏 Высота подъема: 17 м\n⚙️ Двигатель: 2.7 л (107 л.с.)\n💵 Аренда: 12 000 руб/смена',
+                'review': 'Экономичный вариант для невысоких объектов',
+                'photos': ['https://example.com/gaz_avtovishka.jpg']
+            }
+        }
+    },
+    'Автокраны': {
+        'GROVE GMK 5220': {
+            '2020': {
+                'specs': '🛠️ Грузоподъемность: 220 т\n📏 Вылет стрелы: 60 м\n⚙️ Двигатель: Mercedes OM 460 (435 л.с.)\n💵 Аренда: 45 000 руб/час',
+                'review': 'Мощный кран для сложных грузов. Профессиональная техника',
+                'photos': ['https://example.com/grove_gmk5220.jpg']
+            }
+        },
+        'LIEBHERR LTM 1050-3.1': {
+            '2021': {
+                'specs': '🛠️ Грузоподъемность: 50 т\n📏 Вылет стрелы: 36 м\n⚙️ Двигатель: Liebherr (367 л.с.)\n💵 Аренда: 35 000 руб/час',
+                'review': 'Немецкое качество и точность управления',
+                'photos': ['https://example.com/liebherr_ltm.jpg']
+            }
+        }
+    },
+    'Асфальтоукладчики': {
+        'Vogele S-1804': {
+            '2019': {
+                'specs': '🛠️ Ширина укладки: 2.5-8 м\n📏 Толщина слоя: 0-30 см\n⚙️ Двигатель: Deutz (129 кВт)\n💵 Аренда: 25 000 руб/смена',
+                'review': 'Идеален для дорожного строительства. Высокая производительность',
+                'photos': ['https://example.com/vogele_s1804.jpg']
+            }
+        }
+    },
+    'Бульдозеры': {
+        'Caterpillar D6R': {
+            '2018': {
+                'specs': '🛠️ Масса: 22 т\n📏 Мощность: 228 л.с.\n⚙️ Ширина отвала: 3.5 м\n💵 Аренда: 18 000 руб/час',
+                'review': 'Легендарная модель. Надежность проверенная временем',
+                'photos': ['https://example.com/cat_d6r.jpg']
+            }
+        },
+        'Komatsu D275': {
+            '2020': {
+                'specs': '🛠️ Масса: 35 т\n📏 Мощность: 354 л.с.\n⚙️ Ширина отвала: 4.3 м\n💵 Аренда: 22 000 руб/час',
+                'review': 'Мощный бульдозер для масштабных работ',
+                'photos': ['https://example.com/komatsu_d275.jpg']
+            }
+        }
+    },
+    'Экскаваторы': {
+        'Hitachi ZX400LCH': {
+            '2021': {
+                'specs': '🛠️ Масса: 40 т\n📏 Объем ковша: 1.9 м³\n⚙️ Мощность: 294 л.с.\n💵 Аренда: 20 000 руб/час',
+                'review': 'Японское качество. Низкий расход топлива',
+                'photos': ['https://example.com/hitachi_zx400.jpg']
+            }
+        },
+        'JCB 4CX': {
+            '2022': {
+                'specs': '🛠️ Масса: 8.5 т\n📏 Объем ковша: 1.0 м³\n⚙️ Мощность: 74 л.с.\n💵 Аренда: 12 000 руб/час',
+                'review': 'Универсальный экскаватор-погрузчик для коммунальных работ',
+                'photos': ['https://example.com/jcb_4cx.jpg']
+            }
+        }
+    },
+    'Манипуляторы': {
+        'КАМАЗ 65117-3010-78': {
+            '2021': {
+                'specs': '🛠️ Грузоподъемность: 10 т\n📏 Вылет стрелы: 7.8 м\n⚙️ Двигатель: КАМАЗ 740.73-400 (400 л.с.)\n💵 Аренда: 18 000 руб/смена',
+                'review': 'Надёжный российский манипулятор для строительных площадок',
+                'photos': ['https://example.com/kamaz_manipulator1.jpg']
+            }
+        },
+        'ISUZU ISU75R-7': {
+            '2022': {
+                'specs': '🛠️ Грузоподъемность: 7.5 т\n📏 Вылет стрелы: 6.5 м\n⚙️ Двигатель: Isuzu 4HK1 (190 л.с.)\n💵 Аренда: 22 000 руб/смена',
+                'review': 'Японское качество, экономичный расход топлива',
+                'photos': ['https://example.com/isuzu_manipulator.jpg']
+            }
+        }
+    },
+    'Минипогрузчики': {
+        'Bobcat S130': {
+            '2023': {
+                'specs': '🛠️ Грузоподъемность: 590 кг\n📏 Высота выгрузки: 2.1 м\n⚙️ Двигатель: Kubota V2203 (68 л.с.)\n💵 Аренда: 8 000 руб/смена',
+                'review': 'Компактный и манёвренный для работ в стеснённых условиях',
+                'photos': ['https://example.com/bobcat_s130.jpg']
+            }
+        },
+        'Bobcat S250': {
+            '2022': {
+                'specs': '🛠️ Грузоподъемность: 1130 кг\n📏 Высота выгрузки: 2.9 м\n⚙️ Двигатель: Kubota V3307 (74 л.с.)\n💵 Аренда: 12 000 руб/смена',
+                'review': 'Мощный минипогрузчик для сложных грунтов',
+                'photos': ['https://example.com/bobcat_s250.jpg']
+            }
+        }
+    },
+    'Самосвалы': {
+        'КАМАЗ 6520': {
+            '2021': {
+                'specs': '🛠️ Грузоподъемность: 20 т\n📏 Объём кузова: 12 м³\n⚙️ Двигатель: КАМАЗ 740.73-400 (400 л.с.)\n💵 Аренда: 15 000 руб/смена',
+                'review': 'Классика строительных перевозок, ремонтопригодность',
+                'photos': ['https://example.com/kamaz_6520.jpg']
+            }
+        },
+        'HOWO (САМОСВАЛ)': {
+            '2022': {
+                'specs': '🛠️ Грузоподъемность: 25 т\n📏 Объём кузова: 15 м³\n⚙️ Двигатель: Sinotruk WD615.96 (336 л.с.)\n💵 Аренда: 18 000 руб/смена',
+                'review': 'Китайский аналог с хорошей ценой аренды',
+                'photos': ['https://example.com/howo_samosval.jpg']
+            }
+        },
+        'VOLVO (САМОСВАЛ)': {
+            '2023': {
+                'specs': '🛠️ Грузоподъемность: 30 т\n📏 Объём кузова: 18 м³\n⚙️ Двигатель: Volvo D13K (450 л.с.)\n💵 Аренда: 25 000 руб/смена',
+                'review': 'Премиальный самосвал с комфортной кабиной',
+                'photos': ['https://example.com/volvo_samosval.jpg']
+            }
+        },
+        'КАМАЗ 65116-N3 (ДЛИННОМЕР 12м)': {
+            '2020': {
+                'specs': '🛠️ Грузоподъемность: 15 т\n📏 Длина платформы: 12 м\n⚙️ Двигатель: КАМАЗ 740.73-400 (400 л.с.)\n💵 Аренда: 16 000 руб/смена',
+                'review': 'Специализированная техника для длинномерных грузов',
+                'photos': ['https://example.com/kamaz_long.jpg']
+            }
+        }
+    }
+}
+ 
+def get_brands_kb():
+    brands = list(cars_db.keys())
+    keyboard = []
+    for i in range(0, len(brands), 2):
+        row = brands[i:i+2]
+        keyboard.append([KeyboardButton(text=brand) for brand in row])
+    keyboard.append([KeyboardButton(text="📞 Хочу заказать")])
+    return ReplyKeyboardMarkup(
+        keyboard=keyboard,
+        resize_keyboard=True,
+        input_field_placeholder="Выберите технику"
+    )
+
+def get_models_kb(brand: str):
+    models = cars_db.get(brand, [])
+    keyboard = []
+    for i in range(0, len(models), 2):
+        row = models[i:i+2]
+        keyboard.append([KeyboardButton(text=model) for model in row])
+    keyboard.append([
+        KeyboardButton(text="🔙 Сменить технику"),
+        KeyboardButton(text="📞 Заявка на технику")
+    ])
+    return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+
+async def send_car_info(message: types.Message, car_name: str, state: FSMContext, car_info=None):
+    if car_info is None:
+        car_info = car_data.get(car_name, {})
+    
+    photos = car_info.get('photos', [])
+    specs = car_info.get('specs', '🚫 Характеристики отсутствуют')
+
+    actions_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🎥 Видео-отзывы", callback_data="video_review")]
+    ])
+
+    try:
+        if photos:
+            media = [InputMediaPhoto(media=photos[0], caption=f"🚘 {car_name}\n\n{specs}")]
+            media.extend(InputMediaPhoto(media=photo) for photo in photos[1:])
+            await message.answer_media_group(media=media)
+        else:
+            await message.answer(f"🚘 {car_name}\n\n{specs}")
+        
+        await message.answer("Дополнительные опции:", reply_markup=actions_kb)
+
+    except Exception as e:
+        print(f"Ошибка: {e}")
+        await message.answer(f"🚘 {car_name}\n\n{specs}")
+
+@dp.message(Command('start'))
+async def cmd_start(message: types.Message, state: FSMContext):
+    await state.clear()
+    await message.answer(
+        "🚗 Добро пожаловать в бот 'Аренда спецтехники'!\nВыберите нужную технику:",
+        reply_markup=get_brands_kb()
+    )
+    await state.set_state(Form.brand)
+
+@dp.message(Form.brand)
+async def process_brand(message: types.Message, state: FSMContext):
+    if message.text == "📞 Заявка на технику":
+        await state.set_state(ConsultForm.name)
+        return await message.answer("Введите ваше имя:")
+    
+    if message.text not in cars_db:
+        return await message.answer("⚠️ Выберите модель из списка!")
+    
+    await state.update_data(brand=message.text)
+    await message.answer(f"Выберите модель {message.text}:", reply_markup=get_models_kb(message.text))
+    await state.set_state(Form.model)
+
+@dp.message(Form.model)
+async def process_model(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    brand = data.get('brand')
+    
+    if message.text == "🔙 Сменить технику":
+        await state.set_state(Form.brand)
+        await message.answer("Выберите марку:", reply_markup=get_brands_kb())
+        return
+    
+    if message.text == "📞 Заявка на технику":
+        await state.set_state(ConsultForm.name)
+        await message.answer("Введите ваше имя:")
+        return
+    
+    if message.text not in cars_db.get(brand, []):
+        await message.answer("⚠️ Выберите модель из списка!")
+        return
+    
+    await state.update_data(model=message.text)
+    
+    # Безопасное получение вариантов
+    try:
+        variants = list(car_data.get(brand, {}).get(message.text, {}).keys())
+        keyboard = []
+        for variant in variants:
+            keyboard.append([KeyboardButton(text=variant)])
+        
+        if keyboard:  # Если есть варианты
+            keyboard.append([KeyboardButton(text="🔙 Назад к моделям")])
+            kb = ReplyKeyboardMarkup(
+                keyboard=keyboard,
+                resize_keyboard=True
+            )
+            
+            await message.answer(
+                f"Выберите вариант {message.text}:",
+                reply_markup=kb
+            )
+            await state.set_state(Form.model_variant)
+            return
+    except Exception as e:
+        print(f"Ошибка при получении вариантов: {e}")
+    
+    # Если вариантов нет или произошла ошибка
+    car_name = f"{brand} {message.text}"
+    model_data = car_data.get(brand, {}).get(message.text, {})
+    car_info = next(iter(model_data.values())) if model_data else {}
+    await send_car_info(message, car_name, state, car_info)
+
+@dp.message(ConsultForm.name)
+async def process_name(message: types.Message, state: FSMContext):
+    await state.update_data(name=message.text)
+    await state.set_state(ConsultForm.phone)
+    await message.answer("Введите ваш номер телефона:")
+
+@dp.message(ConsultForm.phone)
+async def process_phone(message: types.Message, state: FSMContext):
+    await state.update_data(phone=message.text)
+    await state.set_state(ConsultForm.confirm)
+    await message.answer(
+        f"Пожалуйста, подтвердите согласие на обработку данных:\n{PRIVACY_POLICY_URL}\n\nОтправьте '✅' для подтверждения",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[[KeyboardButton(text="✅")]],
+            resize_keyboard=True
+        )
+    )
+
+@dp.message(ConsultForm.confirm)
+async def process_confirm(message: types.Message, state: FSMContext):
+    if message.text != "✅":
+        await message.answer("❌ Подтверждение обязательно!")
+        return
+    
+    data = await state.get_data()
+    try:
+        await bot.send_message(
+            MANAGER_ID,
+            f"🚨 Новая заявка!\nИмя: {data['name']}\nТелефон: {data['phone']}\nМодель: {data.get('model', 'Не указана')}"
+        )
+        await message.answer(
+            "✅ Спасибо! Мы свяжемся с вами в ближайшее время.",
+            reply_markup=get_brands_kb()
+        )
+    except Exception as e:
+        print(f"Ошибка отправки заявки: {e}")
+        await message.answer("❌ Произошла ошибка. Попробуйте позже.")
+    await state.clear()
+
+@dp.callback_query()
+async def handle_inline_buttons(callback: types.CallbackQuery, state: FSMContext):
+    if callback.data == "video_review":
+        data = await state.get_data()
+        if 'brand' in data and 'model' in data:
+            brand = data['brand']
+            model = data['model']
+            variant = data.get('model_variant', '')
+            
+            # Получаем информацию о машине с учетом варианта
+            car_info = car_data.get(brand, {}).get(model, {})
+            if variant:
+                car_info = car_info.get(variant, {})
+            
+            video = car_info.get('video_review')
+            if video:
+                await callback.message.answer_video(video)
+            else:
+                await callback.answer("Видео-отзывов пока нет 🛠", show_alert=True)
+        else:
+            await callback.answer("Сначала выберите технику!", show_alert=True)
+    await callback.answer()
+
+@dp.message(Form.model_variant)
+async def process_model_variant(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    brand = data.get('brand')
+    model = data.get('model')
+    
+    if message.text == "🔙 Назад к моделям":
+        await state.set_state(Form.model)
+        await message.answer(
+            f"Выберите модель {brand}:",
+            reply_markup=get_models_kb(brand)
+        )
+        return
+    
+    # Проверяем, что выбран существующий вариант
+    variants = car_data.get(brand, {}).get(model, {})
+    if message.text not in variants:
+        await message.answer("⚠️ Выберите вариант из списка!")
+        return
+    
+    await state.update_data(model_variant=message.text)
+    car_info = variants[message.text]
+    
+    # Отправляем информацию о выбранном варианте
+    await send_car_info(message, f"{brand} {model} ({message.text})", state, car_info)
+
+@dp.message()
+async def handle_actions(message: types.Message, state: FSMContext):
+    current_state = await state.get_state()
+    data = await state.get_data()
+    
+    if message.text == "🔙 Выбрать другую модель":
+        if 'brand' not in data:
+            await message.answer("❌ Сначала выберите марку!", reply_markup=get_brands_kb())
+            return
+        
+        await message.answer(
+            f"Выберите модель {data['brand']}:",
+            reply_markup=get_models_kb(data['brand'])
+        )
+        await state.set_state(Form.model)
+        return
+
+    elif message.text == "🎥 Видео-отзывы":
+        if 'brand' in data and 'model' in data:
+            car_name = f"{data['brand']} {data['model']}"
+            video = car_data.get(car_name, {}).get('video_review')
+            if video:
+                await message.answer_video(video)
+            else:
+                await message.answer("📼 Видео-отзывы для этой модели пока отсутствуют")
+        else:
+            await message.answer("⚠️ Сначала выберите технику!")
+
+    elif message.text == "📞 Заявка на технику":
+        await state.set_state(ConsultForm.name)
+        await message.answer("Введите ваше имя:")
+
+    if current_state == Form.brand.state:
+        await process_brand(message, state)
+    elif current_state == Form.model.state:
+        await process_model(message, state)
+    else:
+        await state.set_state(Form.brand)
+        await message.answer("🚗 Выберите модель техники:", reply_markup=get_brands_kb())
+
+    print(f"[EVENT] Unhandled message: {message.text}")
+
+async def main():
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dp.start_polling(bot)
+
+if __name__ == '__main__':
+    asyncio.run(main())
